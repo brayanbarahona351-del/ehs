@@ -2,17 +2,27 @@ import streamlit as st
 import pandas as pd
 from docx import Document
 from io import BytesIO
+import time
 
 # --- CONFIGURACIÓN TÉCNICA ---
-st.set_page_config(page_title="Evaluación Goldstein - Psicología", layout="wide")
+st.set_page_config(page_title="EHS Goldstein Pro", layout="wide")
 
+# Inicializar estado de la aplicación para el botón de borrar
+if 'form_id' not in st.session_state:
+    st.session_state.form_id = 0
+
+def reiniciar_aplicacion():
+    st.session_state.form_id += 1
+    st.rerun()
+
+# --- DATOS DEL MANUAL ---
 GRUPOS = {
-    "I: Primeras Habilidades Sociales": list(range(1, 9)),
-    "II: Habilidades Sociales Avanzadas": list(range(9, 15)),
-    "III: Habilidades Relacionadas con los Sentimientos": list(range(15, 22)),
-    "IV: Habilidades Alternativas a la Agresión": list(range(22, 31)),
-    "V: Habilidades para hacer frente al Estrés": list(range(31, 43)),
-    "VI: Habilidades de Planificación": list(range(43, 51))
+    "I: Primeras Habilidades": list(range(1, 9)),
+    "II: Habilidades Avanzadas": list(range(9, 15)),
+    "III: Habilidades de Sentimientos": list(range(15, 22)),
+    "IV: Alternativas a la Agresión": list(range(22, 31)),
+    "V: Frente al Estrés": list(range(31, 43)),
+    "VI: Planificación": list(range(43, 51))
 }
 
 BAREMOS = {
@@ -48,70 +58,67 @@ PREGUNTAS = [
     "Resuelves la confusión ante mensajes contradictorios", "Comprendes una acusación y cómo relacionarte",
     "Planificas la mejor forma para exponer tu punto de vista", "Decides qué hacer frente a la presión grupal",
     "Resuelves el aburrimiento con actividades nuevas", "Reconoces si un evento está bajo tu control",
-    "Tomas decisiones realistas sobre tus capacidades", "Eres realista sobre cómo desenvolverte en una tarea",
+    "Tomas decisiones realistas sobre lo que eres capaz de realizar", "Eres realista sobre cómo desenvolverte en una tarea",
     "Resuelves qué necesitas saber y cómo conseguir info", "Determinas qué problema es el más importante",
     "Consideras posibilidades y eliges la mejor", "Te organizas y preparas para facilitar tu trabajo"
 ]
 
-def get_enea(score, key):
-    for enea, limit in sorted(BAREMOS[key].items(), reverse=True):
-        if score >= limit: return enea
-    return 1
-
-def interpret(enea):
-    if enea >= 7: return "Excelente/Buen nivel"
-    if enea >= 4: return "Normal"
-    return "Bajo/Deficiente"
-
 # --- INTERFAZ ---
-st.title("Escala de Habilidades Sociales (Goldstein)")
-nombre = st.text_input("Nombre del Evaluado")
-edad = st.number_input("Edad", 12, 90, 20)
+st.title("🚀 Escala de Habilidades Sociales - Goldstein")
 
-st.write("Seleccione la frecuencia de 1 a 5 (1: Nunca, 5: Siempre)")
+with st.sidebar:
+    st.header("Opciones")
+    if st.button("🗑️ Borrar y Nuevo Llenado", on_click=reiniciar_aplicacion):
+        st.success("Formulario reiniciado.")
+    st.divider()
+    nombre = st.text_input("Nombre del Evaluado", key=f"name_{st.session_state.form_id}")
+    edad = st.number_input("Edad", 12, 90, 20, key=f"age_{st.session_state.form_id}")
+
+st.info("Responda de 1 a 5 (1: Nunca, 5: Siempre)")
+
+# Formulario de preguntas
 respuestas = {}
 for i, p in enumerate(PREGUNTAS, 1):
-    respuestas[i] = st.radio(f"{i}. {p}", [1,2,3,4,5], horizontal=True, key=f"r{i}")
+    respuestas[i] = st.select_slider(f"{i}. {p}", options=[1, 2, 3, 4, 5], key=f"q_{i}_{st.session_state.form_id}")
 
-if st.button("Generar Informe Detallado"):
-    res_data = []
+if st.button("📊 Generar Informe y Diagnóstico"):
     total_pd = sum(respuestas.values())
-    for g, items in GRUPOS.items():
-        pd_val = sum(respuestas[idx] for idx in items)
-        id_g = g.split(":")[0]
-        enea = get_enea(pd_val, id_g)
-        res_data.append({"Área": g, "PD": pd_val, "Eneatipo": enea, "Interpretación": interpret(enea)})
+    res_finales = []
     
-    enea_t = get_enea(total_pd, "TOTAL")
-    st.table(pd.DataFrame(res_data))
-    st.metric("Eneatipo Total", enea_t, interpret(enea_t))
+    def get_enea(score, key):
+        for e, limit in sorted(BAREMOS[key].items(), reverse=True):
+            if score >= limit: return e
+        return 1
 
-    # --- GENERACIÓN DE WORD ---
+    for g, items in GRUPOS.items():
+        pd_v = sum(respuestas[idx] for idx in items)
+        enea = get_enea(pd_v, g.split(":")[0])
+        res_finales.append({"Área": g, "PD": pd_v, "Eneatipo": enea})
+
+    enea_total = get_enea(total_pd, "TOTAL")
+    
+    # --- ANIMACIONES SEGÚN RESULTADOS ---
+    if enea_total >= 7:
+        st.balloons()
+        st.success("¡Excelente! El evaluado posee competencias sociales destacadas.")
+    elif enea_total <= 3:
+        st.snow()
+        st.warning("Atención: Se identifican áreas con déficits significativos que requieren intervención.")
+    else:
+        st.info("Resultado dentro del promedio normal.")
+
+    st.table(pd.DataFrame(res_finales))
+    st.metric("Eneatipo Total", enea_total)
+
+    # --- GENERAR WORD ---
     doc = Document()
-    doc.add_heading('INFORME DE HABILIDADES SOCIALES', 0)
+    doc.add_heading('INFORME CLÍNICO DE HABILIDADES SOCIALES', 0)
     doc.add_paragraph(f"Nombre: {nombre}\nEdad: {edad}")
-
-    doc.add_heading('Resultados por Áreas', level=1)
-    tabla = doc.add_table(rows=1, cols=4)
-    tabla.style = 'Table Grid'
-    for i, encabezado in enumerate(["Área", "Puntaje", "Eneatipo", "Interpretación"]):
-        tabla.rows[0].cells[i].text = encabezado
-    for r in res_data:
-        row = tabla.add_row().cells
-        row[0].text = r["Área"]
-        row[1].text = str(r["PD"])
-        row[2].text = str(r["Eneatipo"])
-        row[3].text = r["Interpretación"]
-
-    doc.add_heading('Respuestas Detalladas (Protocolo)', level=1)
+    
+    doc.add_heading('Protocolo de Respuestas', level=1)
     for i, p in enumerate(PREGUNTAS, 1):
-        doc.add_paragraph(f"{i}. {p} -> Respuesta: {respuestas[i]}", style='List Bullet')
-
-    doc.add_heading('Asesoría y Recomendaciones', level=1)
-    for r in res_data:
-        if r["Eneatipo"] <= 3:
-            doc.add_paragraph(f"En el área de '{r['Área']}', el evaluado presenta un nivel bajo. Se recomienda entrenamiento en habilidades específicas y modelamiento conductual.")
+        doc.add_paragraph(f"{i}. {p} -> Respuesta: {respuestas[i]}")
 
     buffer = BytesIO()
     doc.save(buffer)
-    st.download_button("📥 Descargar Informe en Word", buffer.getvalue(), f"Informe_{nombre}.docx")
+    st.download_button("📥 Descargar Informe (Word)", buffer.getvalue(), f"Informe_{nombre}.docx")
