@@ -1,13 +1,12 @@
 import streamlit as st
 import pandas as pd
 from docx import Document
-from docx.shared import Inches, Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Inches, Pt
 from io import BytesIO
 import matplotlib.pyplot as plt
 
-# --- CONFIGURACIÓN DE ESTILO ---
-st.set_page_config(page_title="EHS Goldstein - Reporte Clínico", layout="wide")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="EHS Goldstein - Informe Profesional", layout="wide")
 
 if 'revision' not in st.session_state:
     st.session_state.revision = 0
@@ -18,12 +17,12 @@ def reset_form():
 
 # --- DATOS TÉCNICOS ---
 GRUPOS = {
-    "I: Primeras HHSS": {"items": list(range(1, 9)), "desc": "Habilidades básicas: escuchar, iniciar conversaciones y dar las gracias."},
-    "II: HHSS Avanzadas": {"items": list(range(9, 15)), "desc": "Capacidad para pedir ayuda, integrarse y seguir instrucciones."},
-    "III: Sentimientos": {"items": list(range(15, 22)), "desc": "Expresión de afecto, autorrecompensa y empatía emocional."},
-    "IV: Alt. Agresión": {"items": list(range(22, 31)), "desc": "Autocontrol, defensa de derechos y negociación de conflictos."},
-    "V: Estrés": {"items": list(range(31, 43)), "desc": "Resiliencia ante quejas, fracasos, vergüenza y presión grupal."},
-    "VI: Planificación": {"items": list(range(43, 51)), "desc": "Fijar objetivos, toma de decisiones y organización de tareas."}
+    "I: Primeras HHSS": {"items": list(range(1, 9)), "desc": "Habilidades básicas de comunicación inicial."},
+    "II: HHSS Avanzadas": {"items": list(range(9, 15)), "desc": "Capacidad de integración y seguimiento de instrucciones."},
+    "III: Sentimientos": {"items": list(range(15, 22)), "desc": "Expresión emocional y empatía."},
+    "IV: Alt. Agresión": {"items": list(range(22, 31)), "desc": "Autocontrol y resolución de conflictos."},
+    "V: Estrés": {"items": list(range(31, 43)), "desc": "Resiliencia ante la presión y el fracaso."},
+    "VI: Planificación": {"items": list(range(43, 51)), "desc": "Toma de decisiones y organización."}
 }
 
 BAREMOS = {
@@ -55,104 +54,94 @@ PREGUNTAS = [
     "Resuelves qué necesitas saber", "Determinas qué problema es prioritario", "Consideras posibilidades y eliges", "Te organizas para facilitar el trabajo"
 ]
 
-# --- APP ---
-st.title("Sistema de Diagnóstico de Habilidades Sociales")
+# --- INTERFAZ ---
+st.title("📋 Escala de Habilidades Sociales de Goldstein")
 
 with st.sidebar:
     st.header("Identificación")
     nombre = st.text_input("Nombre", key=f"n_{st.session_state.revision}")
     edad = st.number_input("Edad", 12, 99, 20, key=f"e_{st.session_state.revision}")
-    if st.button("🗑️ Nueva Evaluación"): reset_form()
+    if st.button("🗑️ Reiniciar Todo"): reset_form()
 
-consent = st.checkbox("Acepto el consentimiento informado y la veracidad de mis respuestas")
+st.subheader("1. Consentimiento Informado")
+consent = st.checkbox("Acepto que mis datos sean procesados para esta evaluación psicológica.")
 
 if consent:
-    st.write("---")
-    st.subheader("Cuestionario Autoinformado")
+    st.info("**Instrucciones:** Seleccione su respuesta de 1 (Nunca) a 5 (Siempre). Sea honesto/a.")
+    
     respuestas = {}
-    cols = st.columns(2)
+    c1, c2 = st.columns(2)
     for i, p in enumerate(PREGUNTAS, 1):
-        with cols[0 if i <= 25 else 1]:
-            respuestas[i] = st.radio(f"{i}. {p}", [1,2,3,4,5], horizontal=True, key=f"q_{i}_{st.session_state.revision}")
+        with (c1 if i <= 25 else c2):
+            respuestas[i] = st.radio(f"{i}. {p}", [1,2,3,4,5], horizontal=True, key=f"q_{i}_{st.session_state.revision}", index=None)
 
-    if st.button("📈 Generar Reporte Final"):
-        # Cálculos y Diagnóstico
-        res_data = []
-        for g, info in GRUPOS.items():
-            pd = sum(respuestas[idx] for idx in info["items"])
-            enea = 1
-            for e, lim in sorted(BAREMOS[g.split(":")[0]].items(), reverse=True):
-                if pd >= lim: 
-                    enea = e
-                    break
-            res_data.append({"Área": g, "Eneatipo": enea, "Descripción": info["desc"]})
+    if st.button("📈 GENERAR REPORTE E IMPRESIÓN"):
+        if None in respuestas.values():
+            st.error("⚠️ Error: Faltan preguntas por responder.")
+        else:
+            # PROCESAMIENTO
+            res_data = []
+            total_puntos = sum(respuestas.values())
+            for g, info in GRUPOS.items():
+                pd = sum(respuestas[idx] for idx in info["items"])
+                k = g.split(":")[0]
+                enea = 1
+                for e, lim in sorted(BAREMOS[k].items(), reverse=True):
+                    if pd >= lim: 
+                        enea = e
+                        break
+                res_data.append({"Área": g, "Eneatipo": enea, "Descripción": info["desc"]})
 
-        df = pd.DataFrame(res_data)
-        enea_total = 1
-        total_puntos = sum(respuestas.values())
-        for e, lim in sorted(BAREMOS["TOTAL"].items(), reverse=True):
-            if total_puntos >= lim:
-                enea_total = e
-                break
+            df = pd.DataFrame(res_data)
+            
+            # Gráfico
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.bar(df['Área'], df['Eneatipo'], color='skyblue', edgecolor='black')
+            ax.set_ylim(0, 10)
+            plt.xticks(rotation=15)
+            st.pyplot(fig)
 
-        # --- GENERACIÓN WORD ---
-        doc = Document()
-        sec = doc.sections[0]
-        sec.top_margin = sec.bottom_margin = Inches(0.5)
-        sec.left_margin = sec.right_margin = Inches(0.6)
+            # --- WORD ---
+            doc = Document()
+            # Márgenes estrechos para que quepa en una hoja
+            sec = doc.sections[0]
+            sec.top_margin = sec.bottom_margin = Inches(0.4)
+            sec.left_margin = sec.right_margin = Inches(0.5)
 
-        # Encabezado
-        h = doc.add_heading('PROTOCOLO Y RESULTADOS: ESCALA DE GOLDSTEIN', 0)
-        h.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        info_p = doc.add_paragraph()
-        run = info_p.add_run(f"Evaluado: {nombre}  |  Edad: {edad} años  |  Eneatipo Global: {enea_total}")
-        run.bold = True
-        run.font.size = Pt(11)
+            doc.add_heading('PROTOCOLO OFICIAL - ESCALA DE GOLDSTEIN', 0)
+            doc.add_paragraph(f"Evaluado: {nombre} | Edad: {edad} años").bold = True
 
-        # --- PARTE 1: PROTOCOLO (SEPARADO) ---
-        doc.add_heading('I. PROTOCOLO DE LLENADO (Autoinforme)', level=1)
-        doc.add_paragraph("Registro exacto de la selección del evaluado:").runs[0].font.size = Pt(9)
-        
-        tab_prot = doc.add_table(rows=25, cols=4)
-        tab_prot.style = 'Table Grid'
-        for i in range(1, 26):
-            tab_prot.cell(i-1, 0).text = f"{i}. {PREGUNTAS[i-1][:32]}..."
-            tab_prot.cell(i-1, 1).text = f"[{respuestas[i]}]"
-            tab_prot.cell(i-1, 2).text = f"{i+25}. {PREGUNTAS[i+24][:32]}..."
-            tab_prot.cell(i-1, 3).text = f"[{respuestas[i+25]}]"
-        
-        for row in tab_prot.rows:
-            for cell in row.cells:
-                for p in cell.paragraphs: p.runs[0].font.size = Pt(8)
+            # Tabla de Protocolo (2 columnas)
+            doc.add_heading('Registro de Respuestas (Protocolo)', level=1)
+            table = doc.add_table(rows=25, cols=4)
+            table.style = 'Table Grid'
+            for i in range(1, 26):
+                table.cell(i-1, 0).text = f"{i}. {PREGUNTAS[i-1][:35]}..."
+                table.cell(i-1, 1).text = str(respuestas[i])
+                table.cell(i-1, 2).text = f"{i+25}. {PREGUNTAS[i+24][:35]}..."
+                table.cell(i-1, 3).text = str(respuestas[i+25])
+            
+            # Ajustar fuente de la tabla
+            for row in table.rows:
+                for cell in row.cells:
+                    for p in cell.paragraphs: p.runs[0].font.size = Pt(8)
 
-        # --- PARTE 2: RESULTADOS (SEPARADO) ---
-        doc.add_page_break()
-        doc.add_heading('II. RESULTADOS Y DIAGNÓSTICO CLÍNICO', level=1)
-        
-        # Gráfico
-        fig, ax = plt.subplots(figsize=(10, 4))
-        colors = ['#d9534f' if e <= 3 else '#5cb85c' if e >= 7 else '#f0ad4e' for e in df['Eneatipo']]
-        ax.bar(df['Area' if 'Area' in df else 'Área'], df['Eneatipo'], color=colors, edgecolor='black')
-        ax.set_ylim(0, 10)
-        plt.xticks(rotation=15)
-        
-        buf = BytesIO()
-        plt.savefig(buf, format='png')
-        doc.add_picture(buf, width=Inches(5.5))
+            # Resultados y Explicación
+            doc.add_heading('Interpretación por Áreas', level=1)
+            img_b = BytesIO()
+            plt.savefig(img_b, format='png')
+            doc.add_picture(img_b, width=Inches(5))
 
-        doc.add_heading('III. ANÁLISIS POR ÁREAS Y RECOMENDACIONES', level=1)
-        for index, row in df.iterrows():
-            ap = doc.add_paragraph()
-            ap.add_run(f"• {row['Área']} (Eneatipo {row['Eneatipo']}): ").bold = True
-            ap.add_run(row['Descripción'])
-            if row['Eneatipo'] <= 3:
-                ap.add_run(" [ALERTA: Se requiere intervención]").font.color.rgb = RGBColor(200, 0, 0)
-        
-        doc.add_heading('IV. POSIBLES CAUSAS Y CONSEJOS', level=1)
-        doc.add_paragraph("Causas: Déficits de aprendizaje social, ansiedad social inhibitoria o falta de reforzamiento positivo ambiental.")
-        doc.add_paragraph("Consejos: Practicar técnicas de ensayo conductual, relajación y exposición gradual a situaciones sociales.")
+            for r in res_data:
+                area_p = doc.add_paragraph()
+                run = area_p.add_run(f"• {r['Área']} (Enea: {r['Eneatipo']}): ")
+                run.bold = True
+                area_p.add_run(r['Descripción'])
+                area_p.paragraph_format.space_after = Pt(0)
+                area_p.runs[0].font.size = Pt(9)
 
-        w_buf = BytesIO()
-        doc.save(w_buf)
-        st.download_button("📥 Descargar Informe Profesional", w_buf.getvalue(), f"Reporte_{nombre}.docx")
+            w_buf = BytesIO()
+            doc.save(w_buf)
+            st.download_button("📥 Descargar Formulario de Impresión", w_buf.getvalue(), f"EHS_{nombre}.docx")
+else:
+    st.warning("Debe aceptar el consentimiento para realizar la prueba.")
