@@ -6,7 +6,7 @@ from io import BytesIO
 import matplotlib.pyplot as plt
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Evaluación Clínica EHS", layout="centered")
+st.set_page_config(page_title="EHS Goldstein - Sistema Clínico Pro", layout="centered")
 
 if 'revision' not in st.session_state:
     st.session_state.revision = 0
@@ -15,14 +15,14 @@ def reset_form():
     st.session_state.revision += 1
     st.rerun()
 
-# --- DATOS TÉCNICOS DEL MANUAL ---
+# --- DATOS TÉCNICOS ---
 GRUPOS = {
-    "I: Primeras HHSS": {"items": list(range(1, 9)), "desc": "Habilidades básicas de comunicación: escuchar, iniciar y mantener conversaciones."},
-    "II: HHSS Avanzadas": {"items": list(range(9, 15)), "desc": "Capacidad para pedir ayuda, dar instrucciones y seguir reglas sociales."},
-    "III: HHSS Sentimientos": {"items": list(range(15, 22)), "desc": "Habilidades para conocer y expresar sentimientos y comprender los ajenos."},
-    "IV: Alt. Agresión": {"items": list(range(22, 31)), "desc": "Habilidades de autocontrol, defensa de derechos y negociación de conflictos."},
-    "V: Frente al Estrés": {"items": list(range(31, 43)), "desc": "Capacidad para responder a quejas, presiones de grupo y manejar el fracaso."},
-    "VI: Planificación": {"items": list(range(43, 51)), "desc": "Habilidades de toma de decisiones, fijar objetivos y organización de tareas."}
+    "I: Primeras HHSS": {"items": list(range(1, 9)), "desc": "Habilidades básicas de comunicación: escuchar, iniciar y mantener conversaciones, así como dar las gracias."},
+    "II: HHSS Avanzadas": {"items": list(range(9, 15)), "desc": "Capacidad para pedir ayuda, integrarse a grupos, dar y seguir instrucciones complejas."},
+    "III: HHSS de Sentimientos": {"items": list(range(15, 22)), "desc": "Habilidades para conocer y expresar sentimientos propios, comprender los ajenos y manejar el afecto."},
+    "IV: Alt. a la Agresión": {"items": list(range(22, 31)), "desc": "Capacidad de autocontrol, defensa de derechos, negociación y resolución pacífica de conflictos."},
+    "V: Frente al Estrés": {"items": list(range(31, 43)), "desc": "Capacidad para responder a quejas, fracasos, presiones de grupo y manejar situaciones de vergüenza."},
+    "VI: Planificación": {"items": list(range(43, 51)), "desc": "Toma de decisiones, fijar objetivos de forma realista y organización eficaz del trabajo."}
 }
 
 BAREMOS = {
@@ -55,34 +55,41 @@ PREGUNTAS = [
 ]
 
 # --- INTERFAZ ---
-st.title("📋 Escala de Competencia Social")
+st.title("🚀 Sistema de Diagnóstico y Plan Terapéutico EHS")
 
 with st.sidebar:
     st.header("Identificación")
-    nombre = st.text_input("Nombre", key=f"n_{st.session_state.revision}")
+    nombre = st.text_input("Nombre Completo", key=f"n_{st.session_state.revision}")
     edad = st.number_input("Edad", 12, 99, 20, key=f"e_{st.session_state.revision}")
-    if st.button("🗑️ Reiniciar Evaluación"): reset_form()
+    if st.button("🗑️ Reiniciar Prueba"): reset_form()
 
-st.subheader("1. Consentimiento Informado")
-consent = st.checkbox("Acepto participar voluntariamente y la confidencialidad de los resultados.")
+# INSTRUCCIONES SIEMPRE VISIBLES
+st.subheader("1. Consentimiento e Instrucciones")
+consent = st.checkbox("Acepto el consentimiento informado.")
+
+st.warning("""
+**INSTRUCCIONES DE LLENADO:**
+Lea cada pregunta y seleccione la frecuencia según su comportamiento habitual:
+- **1:** Nunca o muy pocas veces.
+- **2:** Pocas veces.
+- **3:** A veces.
+- **4:** Muchas veces.
+- **5:** Siempre o casi siempre.
+""")
 
 if consent:
-    st.subheader("2. Instrucciones")
-    st.warning("Marque de 1 (Nunca) a 5 (Siempre) según su conducta habitual. No deje preguntas vacías.")
-    
-    # LLENADO EN UNA SOLA COLUMNA
+    # CUESTIONARIO EN UNA COLUMNA
     respuestas = {}
     for i, p in enumerate(PREGUNTAS, 1):
         respuestas[i] = st.radio(f"**{i}. {p}**", [1,2,3,4,5], horizontal=True, key=f"q_{i}_{st.session_state.revision}", index=None)
 
-    if st.button("📈 GENERAR INFORME PROFESIONAL"):
+    if st.button("📈 GENERAR DIAGNÓSTICO Y PLAN TERAPÉUTICO"):
         if None in respuestas.values():
-            st.error("⚠️ Falta responder algunas preguntas.")
+            st.error("⚠️ Error: Debe completar todas las preguntas.")
         else:
-            # Procesamiento de datos
+            # PROCESAMIENTO
             res_data = []
             total_pd = sum(respuestas.values())
-            
             def get_e(pd, k):
                 for e, lim in sorted(BAREMOS[k].items(), reverse=True):
                     if pd >= lim: return e
@@ -95,61 +102,66 @@ if consent:
 
             enea_total = get_e(total_pd, "TOTAL")
             
-            # Gráfico interactivo
+            # Gráfico
             df = pd.DataFrame(res_data)
             fig, ax = plt.subplots(figsize=(10, 4))
-            colors = ['red' if e <= 3 else 'green' if e >= 7 else 'orange' for e in df['Eneatipo']]
+            colors = ['#ff4b4b' if e <= 3 else '#00cc96' if e >= 7 else '#ffa500' for e in df['Eneatipo']]
             ax.bar(df['Área'], df['Eneatipo'], color=colors, edgecolor='black')
             ax.set_ylim(0, 10)
             plt.xticks(rotation=15)
             st.pyplot(fig)
 
-            # --- GENERACIÓN DE WORD (FORMATO FORMULARIO ÚNICO) ---
+            # PLAN TERAPÉUTICO AUTOMÁTICO
+            st.header("📋 Plan Terapéutico Sugerido")
+            deficit_areas = [r['Área'] for r in res_data if r['Eneatipo'] <= 3]
+            
+            if not deficit_areas:
+                st.success("No se observan déficits significativos. Se recomienda mantenimiento de habilidades actuales.")
+            else:
+                st.write("Basado en el perfil, se recomienda intervención en:")
+                for area in deficit_areas:
+                    st.write(f"- **{area}**")
+                
+                st.info("""
+                **Estrategias Generales:**
+                1. **Modelado:** Observar a personas competentes en estas áreas.
+                2. **Ensayo Conductual:** Practicar las conductas en sesión (Role-playing).
+                3. **Retroalimentación:** Revisar y corregir el desempeño.
+                4. **Tareas en casa:** Aplicar lo aprendido en entornos reales controlados.
+                """)
+
+            # --- GENERACIÓN DE WORD ---
             doc = Document()
             sec = doc.sections[0]
-            sec.top_margin = sec.bottom_margin = Inches(0.4)
-            sec.left_margin = sec.right_margin = Inches(0.5)
-
-            # Cabecera
-            h = doc.add_heading('PROTOCOLO Y DIAGNÓSTICO: LISTA DE GOLDSTEIN', 1)
-            h.alignment = 1
-            info_p = doc.add_paragraph()
-            info_p.add_run(f"Evaluado: {nombre} | Edad: {edad} | Eneatipo Global: {enea_total}").bold = True
+            sec.top_margin = sec.bottom_margin = Inches(0.5)
             
-            # Protocolo Compacto (2 columnas)
-            doc.add_heading('Registro de Protocolo (Autoinforme)', level=2)
-            table = doc.add_table(rows=25, cols=4)
-            table.style = 'Table Grid'
-            for i in range(1, 26):
-                table.cell(i-1, 0).text = f"{i}. {PREGUNTAS[i-1][:35]}..."
-                table.cell(i-1, 1).text = f"[{respuestas[i]}]"
-                table.cell(i-1, 2).text = f"{i+25}. {PREGUNTAS[i+24][:35]}..."
-                table.cell(i-1, 3).text = f"[{respuestas[i+25]}]"
-            for row in table.rows:
-                for cell in row.cells:
-                    for p in cell.paragraphs: p.runs[0].font.size = Pt(8)
+            doc.add_heading('INFORME PSICOLÓGICO Y PLAN TERAPÉUTICO', 0)
+            doc.add_paragraph(f"Evaluado: {nombre} | Edad: {edad} años\nEneatipo Global: {enea_total}").bold = True
 
-            # Perfil Gráfico
-            doc.add_heading('Perfil de Competencia Social', level=2)
+            # Protocolo
+            doc.add_heading('1. Protocolo de Respuestas', level=1)
+            for i, p in enumerate(PREGUNTAS, 1):
+                p_doc = doc.add_paragraph(f"{i}. {p}: [{respuestas[i]}]")
+                p_doc.runs[0].font.size = Pt(9)
+
+            # Gráfico
             img_b = BytesIO()
             plt.savefig(img_b, format='png', bbox_inches='tight')
+            doc.add_heading('2. Perfil de Competencia Social', level=1)
             doc.add_picture(img_b, width=Inches(5.5))
 
-            # Explicación de Resultados
-            doc.add_heading('Interpretación Técnica por Áreas', level=2)
+            # Análisis Extenso
+            doc.add_heading('3. Análisis por Áreas', level=1)
             for r in res_data:
-                ap = doc.add_paragraph()
-                ap.add_run(f"{r['Área']} (Eneatipo {r['Eneatipo']}): ").bold = True
-                ap.add_run(r['Descripción'])
-                ap.paragraph_format.space_after = Pt(0)
-                ap.runs[0].font.size = Pt(8.5)
+                area_p = doc.add_paragraph()
+                area_p.add_run(f"{r['Área']} (Eneatipo {r['Eneatipo']}): ").bold = True
+                area_p.add_run(r['Descripción'])
 
-            # Causas y Recomendaciones
-            doc.add_heading('Posibles Causas y Recomendaciones', level=2)
-            doc.add_paragraph("Causas: Ansiedad inhibitoria, falta de modelos o reforzamiento. Recomendación: Entrenamiento en habilidades específicas.", style='Normal').runs[0].font.size = Pt(9)
+            # Plan Terapéutico
+            doc.add_heading('4. Plan Terapéutico Estructurado', level=1)
+            doc.add_paragraph(f"Objetivo: Fortalecer las áreas de {', '.join(deficit_areas)}.")
+            doc.add_paragraph("Fases de Intervención:\n1. Reestructuración cognitiva sobre creencias sociales.\n2. Entrenamiento en habilidades específicas mediante ensayo.\n3. Generalización a entornos naturales.")
 
             w_buf = BytesIO()
             doc.save(w_buf)
-            st.download_button("📥 Descargar Hoja de Impresión", w_buf.getvalue(), f"EHS_Final_{nombre}.docx")
-else:
-    st.info("Debe aceptar el consentimiento para iniciar.")
+            st.download_button("📥 DESCARGAR INFORME Y PLAN COMPLETO", w_buf.getvalue(), f"Informe_EHS_{nombre}.docx")
