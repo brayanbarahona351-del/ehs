@@ -2,11 +2,12 @@ import streamlit as st
 import pandas as pd
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from io import BytesIO
 import matplotlib.pyplot as plt
 
-# --- CONFIGURACIÓN CLÍNICA ---
-st.set_page_config(page_title="Sistema de Evaluación EHS - Goldstein", layout="centered")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="EHS Goldstein - Sistema de Evaluación", layout="wide")
 
 if 'revision' not in st.session_state:
     st.session_state.revision = 0
@@ -15,14 +16,14 @@ def reset_form():
     st.session_state.revision += 1
     st.rerun()
 
-# --- DATOS TÉCNICOS Y BAREMOS ---
+# --- DATOS TÉCNICOS DEL MANUAL ---
 GRUPOS = {
-    "I: Primeras HHSS": {"items": list(range(1, 9)), "desc": "Habilidades básicas de comunicación: escucha activa, inicio de conversación y agradecimiento."},
-    "II: HHSS Avanzadas": {"items": list(range(9, 15)), "desc": "Capacidad para pedir ayuda, integrarse, dar y seguir instrucciones."},
-    "III: HHSS de Sentimientos": {"items": list(range(15, 22)), "desc": "Expresión y comprensión de emociones, manejo del afecto y empatía."},
-    "IV: Alt. a la Agresión": {"items": list(range(22, 31)), "desc": "Autocontrol, defensa de derechos, negociación y resolución de conflictos."},
-    "V: Frente al Estrés": {"items": list(range(31, 43)), "desc": "Resiliencia ante el fracaso, la vergüenza, quejas y presión grupal."},
-    "VI: Planificación": {"items": list(range(43, 51)), "desc": "Toma de decisiones, fijación de objetivos y organización de tareas."}
+    "I: Primeras HHSS": {"items": list(range(1, 9)), "desc": "Habilidades básicas de comunicación: escucha activa, inicio de conversación y agradecimiento social."},
+    "II: HHSS Avanzadas": {"items": list(range(9, 15)), "desc": "Capacidad para pedir ayuda, integrarse a grupos, dar y seguir instrucciones complejas."},
+    "III: HHSS Sentimientos": {"items": list(range(15, 22)), "desc": "Habilidades para conocer y expresar sentimientos propios, comprender los ajenos y manejar el afecto."},
+    "IV: Alt. a la Agresión": {"items": list(range(22, 31)), "desc": "Capacidad de autocontrol, defensa de derechos, negociación y resolución pacífica de conflictos."},
+    "V: Frente al Estrés": {"items": list(range(31, 43)), "desc": "Habilidades para responder a quejas, fracasos, presiones de grupo y manejar la vergüenza."},
+    "VI: Planificación": {"items": list(range(43, 51)), "desc": "Habilidades de toma de decisiones, fijación de objetivos realistas y organización de tareas."}
 }
 
 BAREMOS = {
@@ -36,152 +37,126 @@ BAREMOS = {
 }
 
 PREGUNTAS = [
-    "Prestas atención a la persona que te está hablando...", "Hablas con los demás de temas poco importantes...",
-    "Hablas con otras personas sobre cosas que interesan a ambos", "Clarificas la información que necesitas...",
-    "Permites que los demás sepan que les agradeces los favores", "Te das a conocer a los demás por propia iniciativa",
-    "Ayudas a que los demás se conozcan entre sí", "Dices que te gusta algún aspecto de la otra persona...",
-    "Pides que te ayuden cuando tienes alguna dificultad", "Eliges la mejor forma para integrarte en un grupo...",
-    "Explicas con claridad a los demás cómo hacer una tarea...", "Prestas atención a las instrucciones...",
-    "Pides disculpas a los demás por haber hecho algo mal", "Intentas persuadir a los demás...",
-    "Intentas reconocer las emociones que experimentas", "Permites que los demás conozcan lo que sientes",
-    "Intentas comprender lo que sienten los demás", "Intentas comprender el enfado de la otra persona",
-    "Permites que los demás sepan que te interesas por ellos", "Piensas porqué estás asustado y buscas disminuirlo",
-    "Te dices cosas agradables cuando mereces recompensa", "Reconoces cuando es necesario pedir permiso...",
-    "Te ofreces para compartir algo apreciado por otros", "Ayudas a quien lo necesita",
-    "Estableces un sistema de negociación satisfactorio", "Controlas tu carácter para no perder el control",
-    "Defiendes tus derechos dando a conocer tu postura", "Te las arreglas sin perder el control ante bromas",
-    "Te mantienes al margen de situaciones problemáticas", "Encuentras formas de resolver conflictos sin pelear",
-    "Dices a los demás quién es responsable de un problema", "Intentas llegar a una solución justa ante quejas",
-    "Expresas un sincero cumplido por cómo han jugado", "Haces algo para sentir menos vergüenza",
-    "Eres consciente si te dejan de lado y buscas sentirte mejor", "Manifiestas si han tratado injustamente a un amigo",
-    "Consideras la posición de la otra persona antes de decidir", "Comprendes por qué has fracasado y cómo mejorar",
-    "Resuelves la confusión ante mensajes contradictorios", "Comprendes una acusación y cómo relacionarte",
-    "Planificas la mejor forma para exponer tu punto de vista", "Decides qué hacer ante la presión grupal",
-    "Resuelves el aburrimiento con nuevas actividades", "Reconoces si un evento está bajo tu control",
-    "Tomas decisiones realistas sobre tus capacidades", "Eres realista sobre cómo desenvolverte en una tarea",
-    "Resuelves qué necesitas saber y cómo conseguir info", "Determinas qué problema es el más importante",
-    "Consideras posibilidades y eliges la mejor", "Te organizas y preparas para facilitar tu trabajo"
+    "Prestas atención a quien te habla", "Hablas de temas poco importantes", "Hablas de cosas que interesan a ambos",
+    "Clarificas la información que necesitas", "Agradeces los favores", "Te das a conocer por propia iniciativa",
+    "Ayudas a que los demás se conozcan", "Dices que te gusta algo de otra persona", "Pides ayuda ante dificultades",
+    "Eliges la mejor forma de integrarte", "Explicas con claridad cómo hacer tareas", "Prestas atención a instrucciones",
+    "Pides disculpas por errores", "Intentas persuadir a los demás", "Reconoces tus emociones",
+    "Permites que otros sepan lo que sientes", "Intentas comprender lo que sienten otros", "Comprendes el enfado ajeno",
+    "Te interesas por los demás", "Buscas disminuir tus miedos", "Te dices cosas agradables",
+    "Pides permiso cuando es necesario", "Compartes algo apreciado", "Ayudas a quien lo necesita",
+    "Negocias de forma satisfactoria", "Controlas tu carácter", "Defiendes tus derechos", "No pierdes el control ante bromas",
+    "Evitas situaciones problemáticas", "Resuelves conflictos sin pelear", "Indicas quién es responsable del problema",
+    "Buscas soluciones justas ante quejas", "Expresas cumplidos sinceros", "Haces algo para sentir menos vergüenza",
+    "Gestionas cuando te dejan de lado", "Defiendes a amigos ante injusticias", "Consideras la posición de la otra persona",
+    "Comprendes por qué has fracasado", "Resuelves mensajes contradictorios", "Comprendes acusaciones recibidas",
+    "Planificas cómo exponer tu punto de vista", "Decides qué hacer ante presión grupal", "Resuelves el aburrimiento",
+    "Reconoces si un evento está bajo tu control", "Eres realista sobre tus capacidades", "Eres realista ante tareas difíciles",
+    "Resuelves qué necesitas saber", "Determinas qué problema es prioritario", "Consideras posibilidades y eliges", "Te organizas para facilitar el trabajo"
 ]
 
 # --- INTERFAZ ---
-st.title("Escala de Competencia Social")
-
 with st.sidebar:
-    st.header("Identificación")
-    nombre = st.text_input("Nombre del Evaluado", key=f"n_{st.session_state.revision}")
-    edad = st.number_input("Edad", 12, 99, 20, key=f"e_{st.session_state.revision}")
-    st.divider()
-    if st.button("🗑️ Nueva Evaluación"): reset_form()
-
-# CONSENTIMIENTO E INSTRUCCIONES FIJAS
-with st.container(border=True):
-    st.subheader("Instrucciones y Consentimiento")
-    consent = st.checkbox("Acepto participar voluntariamente y confirmo que he leído las instrucciones.")
-    st.markdown("""
-    **Guía de Llenado:** Seleccione la opción que mejor describa su comportamiento habitual. 
-    * **1:** Nunca / Muy pocas veces.
-    * **5:** Siempre / Casi siempre.
+    st.header("📋 Instrucciones de Llenado")
+    st.info("""
+    Lea cada situación y seleccione el grado en que le ocurre:
+    1: Nunca o muy pocas veces.
+    2: Pocas veces.
+    3: A veces.
+    4: Muchas veces.
+    5: Siempre o casi siempre.
     """)
+    st.divider()
+    st.header("Datos del Evaluado")
+    nombre = st.text_input("Nombre Completo", key=f"n_{st.session_state.revision}")
+    edad = st.number_input("Edad", 12, 99, 20, key=f"e_{st.session_state.revision}")
+    consent = st.checkbox("Acepto el Consentimiento Informado")
+    if st.button("🗑️ Reiniciar Prueba"): reset_form()
+
+st.title("Escala de Habilidades Sociales (Goldstein)")
 
 if consent:
-    # FORMULARIO EN UNA COLUMNA
+    # LLENADO EN UNA COLUMNA
     respuestas = {}
     for i, p in enumerate(PREGUNTAS, 1):
-        respuestas[i] = st.radio(f"**{i}. {p}**", [1,2,3,4,5], horizontal=True, index=None, key=f"q_{i}_{st.session_state.revision}")
+        respuestas[i] = st.radio(f"**{i}. {p}**", [1,2,3,4,5], horizontal=True, key=f"q_{i}_{st.session_state.revision}", index=None)
 
-    if st.button("📈 GENERAR DIAGNÓSTICO E INFORME"):
+    if st.button("📈 GENERAR INFORME CLÍNICO"):
         if None in respuestas.values():
-            st.error("⚠️ Por favor, responda todos los ítems antes de continuar.")
+            st.error("⚠️ Error: Debe completar todas las preguntas del cuestionario.")
         else:
             # PROCESAMIENTO
             res_data = []
             total_pd = sum(respuestas.values())
-            def get_e(pd, k):
+            def obtener_e(p, k):
                 for e, lim in sorted(BAREMOS[k].items(), reverse=True):
-                    if pd >= lim: return e
+                    if p >= lim: return e
                 return 1
 
             for g, info in GRUPOS.items():
-                pd_g = sum(respuestas[idx] for idx in info["items"])
-                enea = get_e(pd_g, g.split(":")[0])
-                res_data.append({"Área": g, "PD": pd_g, "Eneatipo": enea, "Descripción": info["desc"]})
+                pd_v = sum(respuestas[idx] for idx in info["items"])
+                enea = obtener_e(pd_v, g.split(":")[0])
+                res_data.append({"Área": g, "Eneatipo": enea, "Descripción": info["desc"]})
 
-            enea_total = get_e(total_pd, "TOTAL")
-            
-            # --- RESULTADOS CLÍNICOS ---
-            st.header("Resultados y Plan Terapéutico")
             df = pd.DataFrame(res_data)
+            enea_total = obtener_e(total_pd, "TOTAL")
+
+            # --- VISUALIZACIÓN EN PANTALLA ---
+            st.divider()
+            st.header("Interpretación de Resultados")
             
-            # Gráfico de Perfil
             fig, ax = plt.subplots(figsize=(10, 4))
-            colors = ['#ff4b4b' if e <= 3 else '#00cc96' if e >= 7 else '#ffa500' for e in df['Eneatipo']]
-            ax.bar(df['Área'], df['Eneatipo'], color=colors, edgecolor='black')
+            colores = ['#FF4B4B' if e <= 3 else '#00CC96' if e >= 7 else '#FFAA00' for e in df['Eneatipo']]
+            ax.bar(df['Área'], df['Eneatipo'], color=colores, edgecolor='black')
             ax.set_ylim(0, 10)
             plt.xticks(rotation=15)
             st.pyplot(fig)
 
-            # --- ANÁLISIS EXTENSO ---
-            st.subheader("Interpretación por Áreas")
-            for r in res_data:
-                label = "Fortaleza" if r['Eneatipo'] >= 7 else "Deficiencia" if r['Eneatipo'] <= 3 else "Promedio"
-                st.write(f"**{r['Área']} ({label}):** {r['Descripción']}")
-
-            # --- PLAN TERAPÉUTICO ---
-            st.subheader("🎯 Plan Terapéutico Sugerido")
-            deficitarias = [r['Área'] for r in res_data if r['Eneatipo'] <= 3]
-            if deficitarias:
-                st.write(f"Se requiere intervención prioritaria en: {', '.join(deficitarias)}.")
-                st.info("""
-                **Objetivos Técnicos:**
-                1. Reestructuración cognitiva sobre creencias de incompetencia social.
-                2. Entrenamiento en habilidades específicas mediante ensayo conductual y role-playing.
-                3. Tareas de exposición gradual en entornos naturales.
-                4. Reforzamiento positivo de aproximaciones sucesivas a la conducta meta.
-                """)
-            else:
-                st.success("Competencia social global adecuada. Se sugiere mantenimiento.")
-
-            # --- GENERACIÓN DE WORD (COPIA FIEL) ---
+            # --- WORD (FORMATO DE UNA SOLA HOJA TIPO MANUAL) ---
             doc = Document()
             sec = doc.sections[0]
             sec.top_margin = sec.bottom_margin = Inches(0.4)
             sec.left_margin = sec.right_margin = Inches(0.5)
 
-            doc.add_heading('INFORME TÉCNICO: ESCALA DE GOLDSTEIN', 0)
-            doc.add_paragraph(f"Evaluado: {nombre} | Edad: {edad} años | Eneatipo Global: {enea_total}").bold = True
+            h = doc.add_heading('PROTOCOLO CLÍNICO: LISTA DE GOLDSTEIN', 0)
+            h.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            doc.add_paragraph(f"Nombre: {nombre} | Edad: {edad} años | Eneatipo Global: {enea_total}").bold = True
 
-            # TABLA QUE IMITA EL FORMULARIO
-            doc.add_heading('I. Protocolo de Evaluación (Copia de Llenado)', level=1)
-            table = doc.add_table(rows=1, cols=2)
+            # Tabla de Respuestas (Copia fiel del manual en 2 columnas para que quepa en 1 hoja)
+            doc.add_heading('1. Protocolo de Evaluación', level=1)
+            table = doc.add_table(rows=25, cols=4)
             table.style = 'Table Grid'
-            hdr_cells = table.rows[0].cells
-            hdr_cells[0].text = 'Ítem / Situación Evaluación'
-            hdr_cells[1].text = 'Respuesta (1-5)'
-
-            for i, p in enumerate(PREGUNTAS, 1):
-                row_cells = table.add_row().cells
-                row_cells[0].text = f"{i}. {p}"
-                row_cells[1].text = str(respuestas[i])
-                row_cells[1].paragraphs[0].alignment = 1
-
+            for i in range(1, 26):
+                table.cell(i-1, 0).text = f"{i}. {PREGUNTAS[i-1][:35]}..."
+                table.cell(i-1, 1).text = str(respuestas[i])
+                table.cell(i-1, 2).text = f"{i+25}. {PREGUNTAS[i+24][:35]}..."
+                table.cell(i-1, 3).text = str(respuestas[i+25])
             for row in table.rows:
                 for cell in row.cells:
-                    for p_graph in cell.paragraphs: p_graph.runs[0].font.size = Pt(8.5)
+                    for p in cell.paragraphs: p.runs[0].font.size = Pt(8)
 
-            # GRÁFICO E INTERPRETACIÓN
+            # Análisis y Plan
             doc.add_page_break()
-            doc.add_heading('II. Perfil Psicológico y Análisis', level=1)
+            doc.add_heading('2. Diagnóstico y Plan Terapéutico', level=1)
+            
             img_b = BytesIO()
             plt.savefig(img_b, format='png', bbox_inches='tight')
-            doc.add_picture(img_b, width=Inches(5.8))
+            doc.add_picture(img_b, width=Inches(5.5))
 
-            doc.add_heading('III. Análisis de Causas y Plan Terapéutico', level=1)
-            doc.add_paragraph("Posibles Causas: Déficits en la adquisición (falta de modelos), inhibición por ansiedad social o falta de reforzamiento ambiental.")
-            
-            doc.add_heading('Plan de Intervención:', level=2)
-            doc.add_paragraph(f"Prioridad: {', '.join(deficitarias) if deficitarias else 'Mantenimiento'}")
-            doc.add_paragraph("Técnicas: Entrenamiento en Habilidades Sociales (EHS), Modelado, Ensayo Conductual y Retroalimentación.")
+            doc.add_heading('Análisis de Áreas y Posibles Causas:', level=2)
+            doc.add_paragraph("Déficit en el aprendizaje social, ansiedad inhibitoria o falta de reforzamiento ambiental.")
+            for r in res_data:
+                p_area = doc.add_paragraph()
+                p_area.add_run(f"• {r['Área']} (Eneatipo {r['Eneatipo']}): ").bold = True
+                p_area.add_run(r['Descripción'])
+                p_area.runs[0].font.size = Pt(9)
+
+            doc.add_heading('Plan de Intervención Sugerido:', level=2)
+            doc.add_paragraph("Objetivo: Fortalecer las áreas deficitarias mediante Entrenamiento en Habilidades Sociales (EHS), Modelado, Ensayo Conductual (Role-playing) y Tareas de Exposición Gradual.")
 
             w_buf = BytesIO()
             doc.save(w_buf)
-            st.download_button("📥 DESCARGAR INFORME E IMPRESIÓN COMPLETA", w_buf.getvalue(), f"Informe_EHS_{nombre}.docx")
+            st.download_button("📥 Descargar Hoja de Impresión Profesional", w_buf.getvalue(), f"EHS_Informe_{nombre}.docx")
+else:
+    st.info("Por favor, lea y acepte el consentimiento en la barra lateral para comenzar.")
