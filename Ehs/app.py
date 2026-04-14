@@ -3,7 +3,7 @@ import pandas as pd
 from docx import Document
 from io import BytesIO
 
-# --- CONFIGURACIÓN TÉCNICA (Basada en Manual de Ambrosio Tomás) ---
+# --- CONFIGURACIÓN TÉCNICA ---
 st.set_page_config(page_title="Evaluación Goldstein - Psicología", layout="wide")
 
 GRUPOS = {
@@ -15,7 +15,6 @@ GRUPOS = {
     "VI: Habilidades de Planificación": list(range(43, 51))
 }
 
-# Baremo Universitario (Psicología 18-25 años) 
 BAREMOS = {
     "I":   {9: 38, 8: 35, 7: 33, 6: 30, 5: 28, 4: 26, 3: 23, 2: 21, 1: 0},
     "II":  {9: 28, 8: 26, 7: 24, 6: 22, 5: 21, 4: 19, 3: 17, 2: 15, 1: 0},
@@ -69,26 +68,50 @@ st.title("Escala de Habilidades Sociales (Goldstein)")
 nombre = st.text_input("Nombre del Evaluado")
 edad = st.number_input("Edad", 12, 90, 20)
 
-st.write("Seleccione la frecuencia de 1 a 5 (1: Nunca, 5: Siempre) [cite: 98]")
-respuestas = {i: st.radio(f"{i}. {p}", [1,2,3,4,5], horizontal=True) for i, p in enumerate(PREGUNTAS, 1)}
+st.write("Seleccione la frecuencia de 1 a 5 (1: Nunca, 5: Siempre)")
+respuestas = {}
+for i, p in enumerate(PREGUNTAS, 1):
+    respuestas[i] = st.radio(f"{i}. {p}", [1,2,3,4,5], horizontal=True, key=f"r{i}")
 
-if st.button("Generar Informe"):
-    res = []
+if st.button("Generar Informe Detallado"):
+    res_data = []
     total_pd = sum(respuestas.values())
     for g, items in GRUPOS.items():
-        pd = sum(respuestas[idx] for idx in items)
-        id_g = g.split(":")[0].split(" ")[1]
-        enea = get_enea(pd, id_g)
-        res.append({"Área": g, "PD": pd, "Eneatipo": enea, "Diagnóstico": interpret(enea)})
+        pd_val = sum(respuestas[idx] for idx in items)
+        id_g = g.split(":")[0]
+        enea = get_enea(pd_val, id_g)
+        res_data.append({"Área": g, "PD": pd_val, "Eneatipo": enea, "Interpretación": interpret(enea)})
     
     enea_t = get_enea(total_pd, "TOTAL")
-    st.table(pd.DataFrame(res))
+    st.table(pd.DataFrame(res_data))
     st.metric("Eneatipo Total", enea_t, interpret(enea_t))
 
-    # Botón Word
+    # --- GENERACIÓN DE WORD ---
     doc = Document()
-    doc.add_heading(f'Informe: {nombre}', 0)
-    for r in res: doc.add_paragraph(f"{r['Área']}: {r['Diagnóstico']} (Eneatipo {r['Eneatipo']})")
+    doc.add_heading('INFORME DE HABILIDADES SOCIALES', 0)
+    doc.add_paragraph(f"Nombre: {nombre}\nEdad: {edad}")
+
+    doc.add_heading('Resultados por Áreas', level=1)
+    tabla = doc.add_table(rows=1, cols=4)
+    tabla.style = 'Table Grid'
+    for i, encabezado in enumerate(["Área", "Puntaje", "Eneatipo", "Interpretación"]):
+        tabla.rows[0].cells[i].text = encabezado
+    for r in res_data:
+        row = tabla.add_row().cells
+        row[0].text = r["Área"]
+        row[1].text = str(r["PD"])
+        row[2].text = str(r["Eneatipo"])
+        row[3].text = r["Interpretación"]
+
+    doc.add_heading('Respuestas Detalladas (Protocolo)', level=1)
+    for i, p in enumerate(PREGUNTAS, 1):
+        doc.add_paragraph(f"{i}. {p} -> Respuesta: {respuestas[i]}", style='List Bullet')
+
+    doc.add_heading('Asesoría y Recomendaciones', level=1)
+    for r in res_data:
+        if r["Eneatipo"] <= 3:
+            doc.add_paragraph(f"En el área de '{r['Área']}', el evaluado presenta un nivel bajo. Se recomienda entrenamiento en habilidades específicas y modelamiento conductual.")
+
     buffer = BytesIO()
     doc.save(buffer)
-    st.download_button("📥 Descargar Word", buffer.getvalue(), f"{nombre}_EHS.docx")
+    st.download_button("📥 Descargar Informe en Word", buffer.getvalue(), f"Informe_{nombre}.docx")
