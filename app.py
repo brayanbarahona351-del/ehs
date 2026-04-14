@@ -7,7 +7,7 @@ from io import BytesIO
 import matplotlib.pyplot as plt
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="EHS Goldstein - Sistema de Evaluación", layout="wide")
+st.set_page_config(page_title="EHS Goldstein - Clínica Avanzada", layout="wide")
 
 if 'revision' not in st.session_state:
     st.session_state.revision = 0
@@ -16,14 +16,14 @@ def reset_form():
     st.session_state.revision += 1
     st.rerun()
 
-# --- DATOS TÉCNICOS DEL MANUAL ---
+# --- DATOS TÉCNICOS ---
 GRUPOS = {
-    "I: Primeras HHSS": {"items": list(range(1, 9)), "desc": "Habilidades básicas de comunicación: escucha activa, inicio de conversación y agradecimiento social."},
-    "II: HHSS Avanzadas": {"items": list(range(9, 15)), "desc": "Capacidad para pedir ayuda, integrarse a grupos, dar y seguir instrucciones complejas."},
-    "III: HHSS Sentimientos": {"items": list(range(15, 22)), "desc": "Habilidades para conocer y expresar sentimientos propios, comprender los ajenos y manejar el afecto."},
-    "IV: Alt. a la Agresión": {"items": list(range(22, 31)), "desc": "Capacidad de autocontrol, defensa de derechos, negociación y resolución pacífica de conflictos."},
-    "V: Frente al Estrés": {"items": list(range(31, 43)), "desc": "Habilidades para responder a quejas, fracasos, presiones de grupo y manejar la vergüenza."},
-    "VI: Planificación": {"items": list(range(43, 51)), "desc": "Habilidades de toma de decisiones, fijación de objetivos realistas y organización de tareas."}
+    "I: Primeras HHSS": {"items": list(range(1, 9)), "desc": "Habilidades de iniciación social y cordialidad básica."},
+    "II: HHSS Avanzadas": {"items": list(range(9, 15)), "desc": "Asertividad para integrarse y seguir o dar directrices."},
+    "III: HHSS de Sentimientos": {"items": list(range(15, 22)), "desc": "Inteligencia emocional, empatía y auto-reforzamiento."},
+    "IV: Alt. a la Agresión": {"items": list(range(22, 31)), "desc": "Control de impulsos, negociación y resolución de problemas."},
+    "V: Frente al Estrés": {"items": list(range(31, 43)), "desc": "Manejo de la frustración, vergüenza y presión social."},
+    "VI: Planificación": {"items": list(range(43, 51)), "desc": "Funciones ejecutivas: toma de decisiones y organización."}
 }
 
 BAREMOS = {
@@ -55,56 +55,87 @@ PREGUNTAS = [
     "Resuelves qué necesitas saber", "Determinas qué problema es prioritario", "Consideras posibilidades y eliges", "Te organizas para facilitar el trabajo"
 ]
 
-# --- INTERFAZ ---
+# --- LÓGICA DE DIAGNÓSTICO EXTENSO Y EMOJIS ---
+def obtener_diagnostico(enea):
+    if enea >= 7:
+        return {
+            "nivel": "Excelente Nivel", "emoji": "😃", "simbolo": "🌟",
+            "analisis": "El evaluado muestra un repertorio conductual altamente adaptativo. Posee fluidez, asertividad y capacidad para modelar estas conductas. Es capaz de gestionar sus emociones y relacionarse de forma prosocial sin experimentar ansiedad limitante."
+        }
+    elif enea >= 4:
+        return {
+            "nivel": "Nivel Promedio", "emoji": "🙂", "simbolo": "⚖️",
+            "analisis": "El evaluado posee una competencia social dentro de la norma. Logra emitir las conductas esperadas en situaciones de baja o media tensión, pero podría recurrir a la evitación o experimentar bloqueos ante estresores psicosociales elevados o conflictos prolongados."
+        }
+    else:
+        return {
+            "nivel": "Nivel Deficitario", "emoji": "😟", "simbolo": "🚨",
+            "analisis": "Existe un déficit clínico significativo. Las causas probables incluyen: altos niveles de ansiedad social (fobia social), falta de modelos de aprendizaje adecuados durante el desarrollo, o un historial de contingencias punitivas al intentar socializar. Se requiere intervención prioritaria y reestructuración cognitiva."
+        }
+
+# --- INTERFAZ: BARRA LATERAL FIJA ---
 with st.sidebar:
-    st.header("📋 Instrucciones de Llenado")
-    st.info("""
-    Lea cada situación y seleccione el grado en que le ocurre:
-    1: Nunca o muy pocas veces.
-    2: Pocas veces.
-    3: A veces.
-    4: Muchas veces.
-    5: Siempre o casi siempre.
-    """)
-    st.divider()
-    st.header("Datos del Evaluado")
+    st.header("📋 Datos e Instrucciones")
     nombre = st.text_input("Nombre Completo", key=f"n_{st.session_state.revision}")
     edad = st.number_input("Edad", 12, 99, 20, key=f"e_{st.session_state.revision}")
-    consent = st.checkbox("Acepto el Consentimiento Informado")
-    if st.button("🗑️ Reiniciar Prueba"): reset_form()
+    consent = st.checkbox("✅ Acepto el Consentimiento Informado")
+    
+    st.divider()
+    st.warning("""
+    **GUÍA DE LLENADO:**
+    Lea cada ítem y seleccione cómo actúa usted habitualmente.
+    * **1:** Nunca / Rara vez
+    * **2:** Pocas veces
+    * **3:** A veces
+    * **4:** Muchas veces
+    * **5:** Siempre / Casi siempre
+    """)
+    if st.button("🗑️ Reiniciar Evaluación"): reset_form()
 
-st.title("Escala de Habilidades Sociales (Goldstein)")
+# --- INTERFAZ: ÁREA PRINCIPAL ---
+st.title("Sistema Clínico de Evaluación: Escala de Goldstein")
 
 if consent:
-    # LLENADO EN UNA COLUMNA
+    st.write("Complete el cuestionario a continuación desplazándose hacia abajo:")
+    
     respuestas = {}
     for i, p in enumerate(PREGUNTAS, 1):
         respuestas[i] = st.radio(f"**{i}. {p}**", [1,2,3,4,5], horizontal=True, key=f"q_{i}_{st.session_state.revision}", index=None)
 
-    if st.button("📈 GENERAR INFORME CLÍNICO"):
+    if st.button("📈 GENERAR ANÁLISIS Y PLAN TERAPÉUTICO"):
         if None in respuestas.values():
-            st.error("⚠️ Error: Debe completar todas las preguntas del cuestionario.")
+            st.error("⚠️ Faltan preguntas por responder. Revise el formulario.")
         else:
-            # PROCESAMIENTO
+            # CÁLCULOS
             res_data = []
             total_pd = sum(respuestas.values())
-            def obtener_e(p, k):
+            
+            def calcular_enea(pd, k):
                 for e, lim in sorted(BAREMOS[k].items(), reverse=True):
-                    if p >= lim: return e
+                    if pd >= lim: return e
                 return 1
 
             for g, info in GRUPOS.items():
-                pd_v = sum(respuestas[idx] for idx in info["items"])
-                enea = obtener_e(pd_v, g.split(":")[0])
-                res_data.append({"Área": g, "Eneatipo": enea, "Descripción": info["desc"]})
+                pd_g = sum(respuestas[idx] for idx in info["items"])
+                enea = calcular_enea(pd_g, g.split(":")[0])
+                diag = obtener_diagnostico(enea)
+                res_data.append({
+                    "Área": g, "PD": pd_g, "Eneatipo": enea, 
+                    "Emoji": diag['emoji'], "Estado": diag['nivel'], 
+                    "Analisis": diag['analisis'], "Desc": info['desc']
+                })
 
             df = pd.DataFrame(res_data)
-            enea_total = obtener_e(total_pd, "TOTAL")
+            enea_total = calcular_enea(total_pd, "TOTAL")
+            diag_total = obtener_diagnostico(enea_total)
 
-            # --- VISUALIZACIÓN EN PANTALLA ---
+            # --- RESULTADOS EN PANTALLA ---
             st.divider()
-            st.header("Interpretación de Resultados")
-            
+            st.header(f"Resultados de {nombre} {diag_total['emoji']}")
+            st.success(f"**Eneatipo Global:** {enea_total} - {diag_total['nivel']} {diag_total['simbolo']}")
+            st.write(f"**Conclusión General:** {diag_total['analisis']}")
+
+            # Gráfico Visual
             fig, ax = plt.subplots(figsize=(10, 4))
             colores = ['#FF4B4B' if e <= 3 else '#00CC96' if e >= 7 else '#FFAA00' for e in df['Eneatipo']]
             ax.bar(df['Área'], df['Eneatipo'], color=colores, edgecolor='black')
@@ -112,19 +143,23 @@ if consent:
             plt.xticks(rotation=15)
             st.pyplot(fig)
 
-            # --- WORD (FORMATO DE UNA SOLA HOJA TIPO MANUAL) ---
+            # Mostrar tabla descriptiva en pantalla
+            for r in res_data:
+                st.markdown(f"**{r['Emoji']} {r['Área']} (Eneatipo {r['Eneatipo']}):** {r['Estado']}. *{r['Analisis']}*")
+
+            # --- GENERACIÓN DEL DOCUMENTO WORD ---
             doc = Document()
             sec = doc.sections[0]
             sec.top_margin = sec.bottom_margin = Inches(0.4)
             sec.left_margin = sec.right_margin = Inches(0.5)
 
-            h = doc.add_heading('PROTOCOLO CLÍNICO: LISTA DE GOLDSTEIN', 0)
+            # Título
+            h = doc.add_heading('INFORME PSICOLÓGICO: HABILIDADES SOCIALES', 0)
             h.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            
-            doc.add_paragraph(f"Nombre: {nombre} | Edad: {edad} años | Eneatipo Global: {enea_total}").bold = True
+            doc.add_paragraph(f"Paciente: {nombre}  |  Edad: {edad} años  |  Eneatipo Global: {enea_total}").bold = True
 
-            # Tabla de Respuestas (Copia fiel del manual en 2 columnas para que quepa en 1 hoja)
-            doc.add_heading('1. Protocolo de Evaluación', level=1)
+            # 1. Copia Fiel del Protocolo (2 Columnas)
+            doc.add_heading('1. Protocolo de Evaluación (Autoinforme)', level=1)
             table = doc.add_table(rows=25, cols=4)
             table.style = 'Table Grid'
             for i in range(1, 26):
@@ -136,27 +171,42 @@ if consent:
                 for cell in row.cells:
                     for p in cell.paragraphs: p.runs[0].font.size = Pt(8)
 
-            # Análisis y Plan
             doc.add_page_break()
-            doc.add_heading('2. Diagnóstico y Plan Terapéutico', level=1)
-            
+
+            # 2. Análisis Clínico
+            doc.add_heading(f'2. Diagnóstico Global {diag_total["emoji"]}', level=1)
+            doc.add_paragraph(f"Nivel Alcanzado: {diag_total['nivel']} (Eneatipo {enea_total}).")
+            doc.add_paragraph(diag_total['analisis'])
+
+            # Gráfico
             img_b = BytesIO()
             plt.savefig(img_b, format='png', bbox_inches='tight')
-            doc.add_picture(img_b, width=Inches(5.5))
+            doc.add_picture(img_b, width=Inches(6))
 
-            doc.add_heading('Análisis de Áreas y Posibles Causas:', level=2)
-            doc.add_paragraph("Déficit en el aprendizaje social, ansiedad inhibitoria o falta de reforzamiento ambiental.")
+            # 3. Interpretación Extensa por Áreas
+            doc.add_heading('3. Interpretación Extensa por Áreas', level=1)
             for r in res_data:
                 p_area = doc.add_paragraph()
-                p_area.add_run(f"• {r['Área']} (Eneatipo {r['Eneatipo']}): ").bold = True
-                p_area.add_run(r['Descripción'])
-                p_area.runs[0].font.size = Pt(9)
+                p_area.add_run(f"■ {r['Área']} - Eneatipo {r['Eneatipo']} ({r['Estado']}): ").bold = True
+                p_area.add_run(f"Evalúa {r['Desc'].lower()} ")
+                p_area.add_run(f"\nAnálisis Clínico: {r['Analisis']}")
 
-            doc.add_heading('Plan de Intervención Sugerido:', level=2)
-            doc.add_paragraph("Objetivo: Fortalecer las áreas deficitarias mediante Entrenamiento en Habilidades Sociales (EHS), Modelado, Ensayo Conductual (Role-playing) y Tareas de Exposición Gradual.")
+            # 4. Plan Terapéutico Detallado
+            deficitarias = [r['Área'] for r in res_data if r['Eneatipo'] <= 3]
+            doc.add_heading('4. Plan Terapéutico Estructurado', level=1)
+            
+            if deficitarias:
+                doc.add_paragraph(f"Prioridad Clínica: Abordaje urgente en las áreas de {', '.join(deficitarias)}.")
+                doc.add_paragraph("Fase 1: Psicoeducación y Reestructuración Cognitiva.\n  - Identificar pensamientos automáticos negativos ('Nadie me hará caso', 'Haré el ridículo').\n  - Modificar creencias limitantes y reducir la ansiedad anticipatoria.", style='List Bullet')
+                doc.add_paragraph("Fase 2: Entrenamiento en Habilidades Sociales (EHS).\n  - Modelado: El terapeuta ejecuta la conducta deseada.\n  - Ensayo Conductual (Role-playing): El paciente practica la conducta en sesión simulada.", style='List Bullet')
+                doc.add_paragraph("Fase 3: Feedback y Moldeamiento.\n  - Brindar retroalimentación positiva y corregir el lenguaje no verbal (contacto visual, postura).", style='List Bullet')
+                doc.add_paragraph("Fase 4: Generalización.\n  - Asignar tareas de exposición gradual in vivo para practicar las habilidades en su entorno natural (escuela, familia, trabajo).", style='List Bullet')
+            else:
+                doc.add_paragraph("El paciente no presenta déficits clínicos significativos. El plan terapéutico debe enfocarse en el refuerzo positivo y el mantenimiento de las habilidades prosociales adquiridas, promoviendo su liderazgo en dinámicas grupales.")
 
+            # Botón de Descarga
             w_buf = BytesIO()
             doc.save(w_buf)
-            st.download_button("📥 Descargar Hoja de Impresión Profesional", w_buf.getvalue(), f"EHS_Informe_{nombre}.docx")
+            st.download_button("📥 DESCARGAR INFORME EXTENSO (WORD)", w_buf.getvalue(), f"Informe_Clinico_{nombre}.docx")
 else:
-    st.info("Por favor, lea y acepte el consentimiento en la barra lateral para comenzar.")
+    st.info("👈 Por favor, lea y acepte el consentimiento en la barra lateral izquierda para comenzar la evaluación.")
